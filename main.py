@@ -52,27 +52,45 @@ class SupervisorAgent:
             {self.collected_info}
             
             Your task:
-            1. If this is a new conversation, warmly greet the user and ask about their desired job field
-            2. If you know the job field but need more information, ask relevant questions about their:
+            1. If this is a new conversation:
+               - Warmly greet the user
+               - Ask about their desired job field
+            
+            2. If the user mentions a job field for the first time:
+               - Acknowledge their choice
+               - Provide brief insights about the field
+               - Ask about their specific interests within that field
+            
+            3. Once you know their specific interests:
+               - Ask focused questions about:
+                 * Professional experience in that area
+                 * Relevant education and certifications
+                 * Key skills and competencies
+                 * Notable achievements
+                 * Projects or initiatives
+               - Keep questions conversational and relevant to their field
+               - Ask one or two questions at a time to maintain flow
+            
+            4. Only create a resume when you have gathered comprehensive information about:
+               - Their specific role preference
                - Professional experience
                - Education
                - Skills
                - Achievements
-               - Projects
-            3. Once you have comprehensive information, create an ATS-friendly resume in HTML format
-               followed by feedback after a ---FEEDBACK--- marker
             
-            Keep the conversation natural and friendly while gathering all necessary information.
-            Adapt your questions based on previous responses.
-            
-            If you have enough information to create a resume, respond with:
+            When creating the resume, format it as:
             <RESUME>
             [HTML resume content]
             ---FEEDBACK---
             [Your feedback]
             </RESUME>
             
-            Otherwise, continue the conversation naturally.
+            Otherwise, continue the natural conversation and gather information.
+            Remember to:
+            - Keep the conversation friendly and professional
+            - Ask follow-up questions based on their responses
+            - Show understanding of their field and career goals
+            - Store important information they share
             """,
             expected_output="Either a conversational response or a complete resume with feedback",
             agent=self.supervisor
@@ -98,9 +116,19 @@ class SupervisorAgent:
             except:
                 return self._format_response('assistant', response)
         else:
-            # Update collected info based on response
+            # Update collected info based on response content
             if "job field" in response.lower() and not self.collected_info.get('job_field'):
                 self.collected_info['job_field'] = user_input
+            
+            # Extract and store other information based on context
+            if "experience" in user_input.lower():
+                self.collected_info['experience'] = user_input
+            if "education" in user_input.lower():
+                self.collected_info['education'] = user_input
+            if "skills" in user_input.lower():
+                self.collected_info['skills'] = user_input
+            if "achievements" in user_input.lower():
+                self.collected_info['achievements'] = user_input
             
             return self._format_response('assistant', response)
 
