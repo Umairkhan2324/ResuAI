@@ -4,6 +4,7 @@ from config import GEMINI_API_KEY
 from typing import Dict, List, Optional
 from pydantic import BaseModel
 from jinja2 import Environment, FileSystemLoader
+from datetime import datetime
 
 class ResumeData(BaseModel):
     personal_info: dict
@@ -14,12 +15,8 @@ class ResumeData(BaseModel):
     projects: Optional[List[dict]]
 
 def initialize_llm():
-    # Configure Gemini
     genai.configure(api_key=GEMINI_API_KEY)
-    return LLM(
-        model="gemini/gemini-1.5-pro-latest",
-        temperature=0.5,
-    )
+    return LLM(model="gemini/gemini-1.5-pro-latest", temperature=0.5)
 
 def create_job_analyzer(llm):
     return Agent(
@@ -330,6 +327,203 @@ def create_resume(agent, responses: Dict) -> Dict:
             "resume": f"<html><body><p>Error: {str(e)}</p></body></html>",
             "feedback": "Error generating resume and feedback."
         }
+
+class ConversationMemory:
+    def __init__(self):
+        self.history = []
+        self.collected_info = {}
+        self.job_field = None
+        self.field_analysis = None
+
+    def add_interaction(self, agent_role: str, message: str):
+        self.history.append({
+            'role': agent_role,
+            'message': message,
+            'timestamp': datetime.now()
+        })
+
+    def get_context(self) -> str:
+        return "\n".join([
+            f"{interaction['role']}: {interaction['message']}"
+            for interaction in self.history
+        ])
+
+class SupervisorAgent:
+    def __init__(self, llm):
+        self.llm = llm
+        self.memory = ConversationMemory()
+        
+        # Create specialized agents
+        self.agents = {
+            'supervisor': self._create_supervisor(),
+            'analyzer': self._create_analyzer(),
+            'interviewer': self._create_interviewer(),
+            'resume_builder': self._create_resume_builder()
+        }
+
+    def _create_supervisor(self):
+        return Agent(
+            role='Career Advisor Supervisor',
+            goal='Coordinate the resume creation process intelligently',
+            backstory="""Expert career advisor who understands how to gather information 
+            efficiently and create effective resumes. Coordinates with other specialists 
+            to ensure the best outcome.""",
+            llm=self.llm,
+            verbose=True
+        )
+
+    def _create_analyzer(self):
+        return Agent(
+            role='Job Market Analyst',
+            goal='Analyze job requirements and market expectations',
+            backstory='Expert in job market analysis and industry requirements',
+            llm=self.llm,
+            verbose=True
+        )
+
+    def _create_interviewer(self):
+        return Agent(
+            role='Career Information Specialist',
+            goal='Gather relevant career information through intelligent questioning',
+            backstory='Expert at extracting relevant professional information through conversation',
+            llm=self.llm,
+            verbose=True
+        )
+
+    def _create_resume_builder(self):
+        return Agent(
+            role='Resume Creation Expert',
+            goal='Create ATS-optimized professional resumes',
+            backstory='Expert resume writer who creates compelling, ATS-friendly resumes',
+            llm=self.llm,
+            verbose=True
+        )
+
+    def _get_next_action(self) -> Dict:
+        """Let the supervisor decide the next action based on context"""
+        task = Task(
+            description="""
+            Based on the conversation history and current context, determine the next best action.
+            Consider:
+            1. What information is still needed
+            2. Which specialist should be involved next
+            3. What specific question or action should be taken
+            """,
+            expected_output="""
+            JSON response with:
+            - action_type: 'analyze_field', 'ask_question', 'generate_resume', or 'provide_feedback'
+            - agent_role: which specialist should handle this
+            - details: specific question or action details
+            """,
+            agent=self.agents['supervisor'],
+            context=[self.memory.get_context()]
+        )
+        
+        crew = Crew(
+            agents=[self.agents['supervisor']],
+            tasks=[task],
+            process=Process.sequential
+        )
+        
+        return crew.kickoff()
+
+    def handle_input(self, input_text: str) -> Dict:
+        """Process any input and determine next steps"""
+        # Add input to memory
+        self.memory.add_interaction('user', input_text)
+        
+        # Get next action from supervisor
+        action = self._get_next_action()
+        
+        # Execute the determined action
+        if action['action_type'] == 'analyze_field':
+            self.memory.job_field = input_text
+            result = self._analyze_job_field(input_text)
+        elif action['action_type'] == 'ask_question':
+            result = self._get_next_question(action['details'])
+        elif action['action_type'] == 'generate_resume':
+            result = self._generate_resume()
+        else:
+            result = self._provide_feedback(action['details'])
+            
+        # Add result to memory
+        self.memory.add_interaction(action['agent_role'], result)
+        
+        return {
+            'action': action['action_type'],
+            'response': result
+        }
+
+    def _analyze_job_field(self, job_field: str) -> str:
+        task = Task(
+            description=f"Analyze the {job_field} field requirements and expectations",
+            expected_output="Detailed analysis of job requirements and key skills",
+            agent=self.agents['analyzer']
+        )
+        
+        crew = Crew(
+            agents=[self.agents['analyzer']],
+            tasks=[task],
+            process=Process.sequential
+        )
+        
+        return crew.kickoff()
+
+    def _get_next_question(self, context: str) -> str:
+        task = Task(
+            description="Generate the next most relevant question based on context",
+            expected_output="A clear, focused question to gather needed information",
+            agent=self.agents['interviewer'],
+            context=[context]
+        )
+        
+        crew = Crew(
+            agents=[self.agents['interviewer']],
+            tasks=[task],
+            process=Process.sequential
+        )
+        
+        return crew.kickoff()
+
+    def _generate_resume(self) -> Dict:
+        resume_task = Task(
+            description="Create a professional resume based on gathered information",
+            expected_output="HTML formatted resume",
+            agent=self.agents['resume_builder'],
+            context=[self.memory.get_context()]
+        )
+        
+        feedback_task = Task(
+            description="Review the resume and provide actionable feedback",
+            expected_output="Detailed feedback and suggestions",
+            agent=self.agents['supervisor']
+        )
+        
+        crew = Crew(
+            agents=[self.agents['resume_builder'], self.agents['supervisor']],
+            tasks=[resume_task, feedback_task],
+            process=Process.sequential
+        )
+        
+        result = crew.kickoff()
+        
+        # Parse the result
+        try:
+            html_parts = result.split('---FEEDBACK---')
+            return {
+                'resume': html_parts[0].strip(),
+                'feedback': html_parts[1].strip() if len(html_parts) > 1 else "No feedback provided"
+            }
+        except Exception as e:
+            return {
+                'resume': f"<p>Error generating resume: {str(e)}</p>",
+                'feedback': "Error occurred during generation"
+            }
+
+    def _provide_feedback(self, details: str) -> str:
+        # Implement the logic to provide feedback based on the details
+        # This is a placeholder and should be replaced with actual implementation
+        return "Feedback provided based on the details."
 
 if __name__ == "__main__":
     result = run_crew("Artificial Intelligence")
