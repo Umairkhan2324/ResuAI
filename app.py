@@ -1,10 +1,10 @@
 import streamlit as st
-from main import initialize_llm, ResumeAgent
+from main import initialize_llm, SupervisorAgent
 
 def initialize_session_state():
     if 'agent' not in st.session_state:
         llm = initialize_llm()
-        st.session_state.agent = ResumeAgent(llm)
+        st.session_state.agent = SupervisorAgent(llm)
 
 st.set_page_config(
     page_title="AI Resume Generator",
@@ -36,7 +36,7 @@ if user_input:
     with st.spinner("Thinking..."):
         result = st.session_state.agent.handle_input(user_input)
         
-        if result['action'] == 'complete':
+        if result['type'] == 'resume':
             col1, col2 = st.columns(2)
             with col1:
                 st.subheader("Your Resume")
@@ -46,7 +46,7 @@ if user_input:
                 st.markdown(result['feedback'])
             
             if st.button("Start Over"):
-                st.session_state.agent = ResumeAgent(initialize_llm())
+                st.session_state.agent = SupervisorAgent(initialize_llm())
                 st.rerun()
         else:
             with st.chat_message("assistant"):
@@ -57,7 +57,7 @@ st.markdown("---")
 st.markdown("""
 ### How to use:
 1. Enter your desired job field
-2. Answer the interviewer's questions
+2. Answer the questions about your experience and skills
 3. Review your generated resume and feedback
-4. Make adjustments as needed based on the AI feedback
+4. Start over if you want to make changes
 """) 
