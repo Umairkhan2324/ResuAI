@@ -61,18 +61,27 @@ class SupervisorAgent:
                - Provide brief insights about the field
                - Ask about their specific interests within that field
             
-            3. Once you know their specific interests:
-               - Ask focused questions about:
-                 * Professional experience in that area
-                 * Relevant education and certifications
-                 * Key skills and competencies
-                 * Notable achievements
-                 * Projects or initiatives
-               - Keep questions conversational and relevant to their field
-               - Ask one or two questions at a time to maintain flow
+            3. Once you know their specific interests, gather information in this order:
+               a. Personal Information (if not collected):
+                  - Full name
+                  - Professional email
+                  - Phone number
+                  - Location (City, State)
+                  - LinkedIn profile (if available)
+                  - Portfolio/Github (if relevant)
+               
+               b. Professional Background:
+                  - Professional experience
+                  - Education and certifications
+                  - Technical skills
+                  - Notable achievements
+                  - Projects and contributions
+            
+               Keep questions conversational and ask 1-2 questions at a time.
+               Ensure personal information is collected before moving to resume creation.
             
             4. Only create a resume when you have gathered comprehensive information about:
-               - Their specific role preference
+               - Personal details (name, contact info, location)
                - Professional experience
                - Education
                - Skills
@@ -91,6 +100,7 @@ class SupervisorAgent:
             - Ask follow-up questions based on their responses
             - Show understanding of their field and career goals
             - Store important information they share
+            - Ensure all necessary personal information is collected
             """,
             expected_output="Either a conversational response or a complete resume with feedback",
             agent=self.supervisor
@@ -105,6 +115,12 @@ class SupervisorAgent:
         
         # Check if response contains a resume
         if "<RESUME>" in response:
+            # Verify we have personal information before creating resume
+            if not all(key in self.collected_info for key in ['name', 'email', 'location']):
+                return self._format_response('assistant', 
+                    "Before I create your resume, I'll need some personal information. "
+                    "Could you please share your full name, professional email, and location (city, state)?")
+            
             try:
                 resume_content = response.split("<RESUME>")[1].split("</RESUME>")[0].strip()
                 resume, feedback = resume_content.split("---FEEDBACK---")
@@ -116,11 +132,19 @@ class SupervisorAgent:
             except:
                 return self._format_response('assistant', response)
         else:
-            # Update collected info based on response content
-            if "job field" in response.lower() and not self.collected_info.get('job_field'):
-                self.collected_info['job_field'] = user_input
-            
-            # Extract and store other information based on context
+            # Update collected info based on context
+            if "name" in user_input.lower():
+                self.collected_info['name'] = user_input
+            if "email" in user_input.lower():
+                self.collected_info['email'] = user_input
+            if "location" in user_input.lower() or "city" in user_input.lower():
+                self.collected_info['location'] = user_input
+            if "phone" in user_input.lower():
+                self.collected_info['phone'] = user_input
+            if "linkedin" in user_input.lower():
+                self.collected_info['linkedin'] = user_input
+            if "github" in user_input.lower() or "portfolio" in user_input.lower():
+                self.collected_info['portfolio'] = user_input
             if "experience" in user_input.lower():
                 self.collected_info['experience'] = user_input
             if "education" in user_input.lower():
