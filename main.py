@@ -365,9 +365,8 @@ class SupervisorAgent:
         return Agent(
             role='Career Advisor Supervisor',
             goal='Coordinate the resume creation process intelligently',
-            backstory="""Expert career advisor who understands how to gather information 
-            efficiently and create effective resumes. Coordinates with other specialists 
-            to ensure the best outcome.""",
+            backstory="""Expert career advisor who coordinates the resume creation process 
+            and ensures comprehensive information gathering.""",
             llm=self.llm,
             verbose=True
         )
@@ -400,101 +399,59 @@ class SupervisorAgent:
         )
 
     def _get_next_action(self) -> Dict:
-        """Let the supervisor decide the next action based on context"""
         task = Task(
-            description="""
-            Based on the conversation history and current context, determine the next best action.
-            Consider:
-            1. What information is still needed
-            2. Which specialist should be involved next
-            3. What specific question or action should be taken
-            
-            Format your response as a JSON object with:
-            {
-                "action_type": "analyze_field" | "ask_question" | "generate_resume" | "provide_feedback",
-                "agent_role": "analyzer" | "interviewer" | "resume_builder" | "supervisor",
-                "details": "specific question or action details"
-            }
-            """,
-            expected_output="JSON formatted action decision",
+            description="Determine the next best action in the resume creation process.",
+            expected_output="Next action to take",
             agent=self.agents['supervisor'],
-            context=[self.memory.get_context()]
+            context=[
+                f"Current job field: {self.memory.job_field}",
+                f"Conversation history: {self.memory.get_context()}"
+            ]
         )
         
         crew = Crew(
             agents=[self.agents['supervisor']],
-            tasks=[task],
-            process=Process.sequential
+            tasks=[task]
         )
         
-        try:
-            # Parse the response into a dictionary
-            response = crew.kickoff()
-            # If response is already a dict, return it
-            if isinstance(response, dict):
-                return response
-            # Try to evaluate the string as a Python dict
-            if isinstance(response, str):
-                import json
-                try:
-                    return json.loads(response)
-                except json.JSONDecodeError:
-                    # Fallback to a default action if parsing fails
-                    if not self.memory.job_field:
-                        return {
-                            "action_type": "analyze_field",
-                            "agent_role": "analyzer",
-                            "details": "Initial job field analysis"
-                        }
-                    else:
-                        return {
-                            "action_type": "ask_question",
-                            "agent_role": "interviewer",
-                            "details": "Next interview question"
-                        }
-        except Exception as e:
-            print(f"Error in _get_next_action: {str(e)}")
-            # Return a safe default action
+        response = crew.kickoff()
+        
+        # Default action if no job field yet
+        if not self.memory.job_field:
             return {
-                "action_type": "ask_question",
-                "agent_role": "interviewer",
-                "details": "Continue with interview"
+                'action_type': 'analyze_field',
+                'agent_role': 'analyzer',
+                'details': 'Initial job field analysis needed'
             }
+        
+        # Default to asking questions if we can't parse the response
+        return {
+            'action_type': 'ask_question',
+            'agent_role': 'interviewer',
+            'details': 'Continue gathering information'
+        }
 
     def handle_input(self, input_text: str) -> Dict:
-        """Process any input and determine next steps"""
-        # Add input to memory
+        # Add user input to memory
         self.memory.add_interaction('user', input_text)
         
-        # Get next action from supervisor
-        action = self._get_next_action()
-        
-        try:
-            # Execute the determined action
-            if action['action_type'] == 'analyze_field':
-                self.memory.job_field = input_text
-                result = self._analyze_job_field(input_text)
-            elif action['action_type'] == 'ask_question':
-                result = self._get_next_question(action.get('details', ''))
-            elif action['action_type'] == 'generate_resume':
-                result = self._generate_resume()
-            else:
-                result = self._provide_feedback(action.get('details', ''))
-                
-            # Add result to memory
-            self.memory.add_interaction(action.get('agent_role', 'assistant'), result)
-            
+        # If this is the first input, treat it as the job field
+        if not self.memory.job_field:
+            self.memory.job_field = input_text
+            result = self._analyze_job_field(input_text)
+            self.memory.add_interaction('analyzer', result)
             return {
-                'action': action['action_type'],
+                'action': 'analyze_field',
                 'response': result
             }
-        except Exception as e:
-            print(f"Error in handle_input: {str(e)}")
-            # Return a safe default response
-            return {
-                'action': 'ask_question',
-                'response': "I apologize, but I'm having trouble processing that. Could you please provide more information about your professional background?"
-            }
+        
+        # For subsequent inputs, get the next question
+        result = self._get_next_question()
+        self.memory.add_interaction('interviewer', result)
+        return {
+            'action': 'ask_question',
+            'response': result
+        }
 
     def _analyze_job_field(self, job_field: str) -> str:
         task = Task(
@@ -505,67 +462,25 @@ class SupervisorAgent:
         
         crew = Crew(
             agents=[self.agents['analyzer']],
-            tasks=[task],
-            process=Process.sequential
+            tasks=[task]
         )
         
         return crew.kickoff()
 
-    def _get_next_question(self, context: str) -> str:
+    def _get_next_question(self) -> str:
         task = Task(
-            description="Generate the next most relevant question based on context",
+            description="Generate the next most relevant question based on previous responses",
             expected_output="A clear, focused question to gather needed information",
             agent=self.agents['interviewer'],
-            context=[context]
+            context=[self.memory.get_context()]
         )
         
         crew = Crew(
             agents=[self.agents['interviewer']],
-            tasks=[task],
-            process=Process.sequential
+            tasks=[task]
         )
         
         return crew.kickoff()
-
-    def _generate_resume(self) -> Dict:
-        resume_task = Task(
-            description="Create a professional resume based on gathered information",
-            expected_output="HTML formatted resume",
-            agent=self.agents['resume_builder'],
-            context=[self.memory.get_context()]
-        )
-        
-        feedback_task = Task(
-            description="Review the resume and provide actionable feedback",
-            expected_output="Detailed feedback and suggestions",
-            agent=self.agents['supervisor']
-        )
-        
-        crew = Crew(
-            agents=[self.agents['resume_builder'], self.agents['supervisor']],
-            tasks=[resume_task, feedback_task],
-            process=Process.sequential
-        )
-        
-        result = crew.kickoff()
-        
-        # Parse the result
-        try:
-            html_parts = result.split('---FEEDBACK---')
-            return {
-                'resume': html_parts[0].strip(),
-                'feedback': html_parts[1].strip() if len(html_parts) > 1 else "No feedback provided"
-            }
-        except Exception as e:
-            return {
-                'resume': f"<p>Error generating resume: {str(e)}</p>",
-                'feedback': "Error occurred during generation"
-            }
-
-    def _provide_feedback(self, details: str) -> str:
-        # Implement the logic to provide feedback based on the details
-        # This is a placeholder and should be replaced with actual implementation
-        return "Feedback provided based on the details."
 
 if __name__ == "__main__":
     result = run_crew("Artificial Intelligence")
