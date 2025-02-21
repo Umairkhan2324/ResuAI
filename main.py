@@ -3,7 +3,6 @@ import google.generativeai as genai
 from config import GEMINI_API_KEY
 from typing import Dict, List
 from datetime import datetime
-import json
 
 def initialize_llm():
     genai.configure(api_key=GEMINI_API_KEY)
@@ -14,48 +13,45 @@ class SupervisorAgent:
         self.llm = llm
         self.conversation_history = []
         self.collected_info = {}
-        self.current_stage = 'greeting'
         
         # Initialize all agents
-        self.supervisor = self._create_supervisor()
-        self.analyzer = self._create_analyzer()
-        self.interviewer = self._create_interviewer()
-        self.resume_builder = self._create_resume_builder()
-
-    def _create_supervisor(self):
-        return Agent(
+        self.supervisor = Agent(
             role='Career Advisor Supervisor',
-            goal='Coordinate the resume creation process and ensure quality',
+            goal='Coordinate the resume creation process intelligently',
             backstory="""I am a senior career advisor who manages the resume creation process.
-            I understand when to analyze job requirements, when to gather information, and when
-            to create the final resume. I ensure all necessary information is collected.""",
+            I analyze conversations, determine when to gather more information, and decide 
+            when we have enough details to create a resume. I ensure the process is natural 
+            and comprehensive.""",
             llm=self.llm,
             verbose=True
         )
-
-    def _create_analyzer(self):
-        return Agent(
+        
+        self.analyzer = Agent(
             role='Job Market Analyst',
-            goal='Analyze job fields and requirements',
-            backstory='Expert in analyzing job markets and understanding requirements',
+            goal='Analyze job requirements and provide insights',
+            backstory="""I deeply understand various job markets and their requirements.
+            I can analyze job fields and provide valuable insights about required skills,
+            qualifications, and industry trends.""",
             llm=self.llm,
             verbose=True
         )
-
-    def _create_interviewer(self):
-        return Agent(
+        
+        self.interviewer = Agent(
             role='Professional Interviewer',
-            goal='Gather detailed professional information',
-            backstory='Expert at conducting professional interviews and gathering relevant information',
+            goal='Gather comprehensive professional information',
+            backstory="""I am an expert interviewer who knows how to ask the right questions
+            to gather relevant information for resumes. I adapt my questions based on previous
+            responses and ensure all important details are covered.""",
             llm=self.llm,
             verbose=True
         )
-
-    def _create_resume_builder(self):
-        return Agent(
+        
+        self.resume_builder = Agent(
             role='Resume Creator',
-            goal='Create professional, ATS-friendly resumes',
-            backstory='Expert resume writer who creates compelling resumes',
+            goal='Create outstanding, ATS-friendly resumes',
+            backstory="""I am an expert resume writer who knows how to present information
+            effectively. I create compelling, ATS-optimized resumes that highlight candidates'
+            strengths and achievements.""",
             llm=self.llm,
             verbose=True
         )
@@ -76,130 +72,125 @@ class SupervisorAgent:
     def handle_input(self, user_input: str) -> Dict:
         self.add_to_history('user', user_input)
         
-        # Let supervisor decide next action
+        # Let the supervisor analyze and decide
         task = Task(
             description=f"""
-            Current stage: {self.current_stage}
-            Previous conversation: {self.get_context()}
-            Collected information: {json.dumps(self.collected_info, indent=2)}
-
-            Determine the next best action:
-            1. If greeting, welcome user and ask for job field
-            2. If new job field mentioned, analyze requirements
-            3. If gathering information, ask relevant questions
-            4. If enough information, create resume
-
-            Respond in JSON format:
-            {{
-                "action": "greet" | "analyze" | "interview" | "create_resume",
-                "agent": "supervisor" | "analyzer" | "interviewer" | "resume_builder",
-                "message": "message to user",
-                "next_stage": "next stage name"
-            }}
+            As the supervisor, analyze the current conversation and decide the next step.
+            
+            Conversation history:
+            {self.get_context()}
+            
+            Collected information:
+            {self.collected_info}
+            
+            Your task is to:
+            1. Understand the current state of the conversation
+            2. Decide what information is still needed
+            3. Choose which specialist (analyzer, interviewer, or resume builder) should handle this
+            4. Provide clear instructions to the chosen specialist
+            
+            If this is a new conversation, start by welcoming the user and understanding their job field.
+            If we're gathering information, ensure it's comprehensive before moving to resume creation.
             """,
-            expected_output="JSON response with next action",
+            expected_output="Decision on next action and which specialist to involve",
             agent=self.supervisor
         )
-
+        
         crew = Crew(
             agents=[self.supervisor],
             tasks=[task]
         )
+        
+        decision = crew.kickoff()
+        
+        # Based on the supervisor's decision, engage the appropriate specialist
+        if "analyze" in decision.lower() or "job field" in decision.lower():
+            return self._engage_analyzer(user_input)
+        elif "interview" in decision.lower() or "question" in decision.lower():
+            return self._engage_interviewer()
+        elif "resume" in decision.lower() or "create" in decision.lower():
+            return self._create_resume()
+        else:
+            # Default to supervisor's response
+            return self._format_response('assistant', decision)
 
+    def _engage_analyzer(self, job_field: str) -> Dict:
+        task = Task(
+            description=f"""
+            Analyze the {job_field} field and provide insights.
+            Consider:
+            - Key requirements and qualifications
+            - Essential skills (technical and soft)
+            - Industry trends
+            - Career progression paths
+            
+            Provide a helpful analysis that will guide our information gathering.
+            """,
+            expected_output="Comprehensive job field analysis",
+            agent=self.analyzer
+        )
+        
+        crew = Crew(agents=[self.analyzer], tasks=[task])
+        analysis = crew.kickoff()
+        
+        self.collected_info['job_field'] = job_field
+        self.collected_info['analysis'] = analysis
+        return self._format_response('assistant', analysis)
+
+    def _engage_interviewer(self) -> Dict:
+        task = Task(
+            description=f"""
+            Based on the conversation history and collected information:
+            {self.get_context()}
+            {self.collected_info}
+            
+            Ask the next most relevant question to gather resume information.
+            Consider what information is still missing and what would be most valuable to know.
+            Make your question conversational and context-aware.
+            """,
+            expected_output="Next interview question",
+            agent=self.interviewer
+        )
+        
+        crew = Crew(agents=[self.interviewer], tasks=[task])
+        question = crew.kickoff()
+        return self._format_response('assistant', question)
+
+    def _create_resume(self) -> Dict:
+        task = Task(
+            description=f"""
+            Create a professional resume based on:
+            {self.collected_info}
+            
+            1. Format it in clean HTML
+            2. Ensure it's ATS-friendly
+            3. Highlight key achievements and skills
+            4. Add your expert feedback after a ---FEEDBACK--- marker
+            """,
+            expected_output="HTML resume with feedback",
+            agent=self.resume_builder
+        )
+        
+        crew = Crew(agents=[self.resume_builder], tasks=[task])
+        result = crew.kickoff()
+        
         try:
-            response = json.loads(crew.kickoff())
-            self.current_stage = response['next_stage']
+            resume, feedback = result.split('---FEEDBACK---')
+        except:
+            resume = result
+            feedback = "Great resume! Consider adding more quantifiable achievements if possible."
             
-            if response['action'] == 'greet':
-                return self._format_response('assistant', response['message'])
-            
-            elif response['action'] == 'analyze':
-                analysis = self._analyze_job_field(user_input)
-                self.collected_info['job_field'] = user_input
-                self.collected_info['analysis'] = analysis
-                return self._format_response('assistant', analysis)
-            
-            elif response['action'] == 'interview':
-                question = self._get_next_question()
-                return self._format_response('assistant', question)
-            
-            elif response['action'] == 'create_resume':
-                result = self._create_resume()
-                return {
-                    'type': 'resume',
-                    'resume': result['resume'],
-                    'feedback': result['feedback']
-                }
-            
-        except Exception as e:
-            print(f"Error: {str(e)}")
-            return self._format_response('assistant', 
-                "I apologize, but I'm having trouble processing that. Could you please rephrase?")
+        return {
+            'type': 'resume',
+            'resume': resume.strip(),
+            'feedback': feedback.strip()
+        }
 
     def _format_response(self, role: str, message: str) -> Dict:
         self.add_to_history(role, message)
         return {
             'type': 'message',
             'message': message
-        }
-
-    def _analyze_job_field(self, job_field: str) -> str:
-        task = Task(
-            description=f"Analyze the {job_field} field requirements and expectations",
-            expected_output="Detailed analysis and initial question",
-            agent=self.analyzer
-        )
-        
-        crew = Crew(
-            agents=[self.analyzer],
-            tasks=[task]
-        )
-        
-        return crew.kickoff()
-
-    def _get_next_question(self) -> str:
-        task = Task(
-            description=f"""
-            Based on collected information: {json.dumps(self.collected_info, indent=2)}
-            Previous conversation: {self.get_context()}
-            
-            Ask the next most relevant question to gather resume information.
-            """,
-            expected_output="Next interview question",
-            agent=self.interviewer
-        )
-        
-        crew = Crew(
-            agents=[self.interviewer],
-            tasks=[task]
-        )
-        
-        return crew.kickoff()
-
-    def _create_resume(self) -> Dict:
-        task = Task(
-            description=f"""
-            Create a professional resume using:
-            Collected information: {json.dumps(self.collected_info, indent=2)}
-            
-            Provide both HTML resume and feedback.
-            Separate resume and feedback with ---FEEDBACK--- marker.
-            """,
-            expected_output="HTML resume and feedback",
-            agent=self.resume_builder
-        )
-        
-        crew = Crew(
-            agents=[self.resume_builder],
-            tasks=[task]
-        )
-        
-        response = crew.kickoff()
-        parts = response.split('---FEEDBACK---')
-        
-        return {
-            'resume': parts[0].strip(),
-            'feedback': parts[1].strip() if len(parts) > 1 else "No feedback provided"
         }
 
 if __name__ == "__main__":
