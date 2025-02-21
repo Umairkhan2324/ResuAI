@@ -408,13 +408,15 @@ class SupervisorAgent:
             1. What information is still needed
             2. Which specialist should be involved next
             3. What specific question or action should be taken
+            
+            Format your response as a JSON object with:
+            {
+                "action_type": "analyze_field" | "ask_question" | "generate_resume" | "provide_feedback",
+                "agent_role": "analyzer" | "interviewer" | "resume_builder" | "supervisor",
+                "details": "specific question or action details"
+            }
             """,
-            expected_output="""
-            JSON response with:
-            - action_type: 'analyze_field', 'ask_question', 'generate_resume', or 'provide_feedback'
-            - agent_role: which specialist should handle this
-            - details: specific question or action details
-            """,
+            expected_output="JSON formatted action decision",
             agent=self.agents['supervisor'],
             context=[self.memory.get_context()]
         )
@@ -425,7 +427,39 @@ class SupervisorAgent:
             process=Process.sequential
         )
         
-        return crew.kickoff()
+        try:
+            # Parse the response into a dictionary
+            response = crew.kickoff()
+            # If response is already a dict, return it
+            if isinstance(response, dict):
+                return response
+            # Try to evaluate the string as a Python dict
+            if isinstance(response, str):
+                import json
+                try:
+                    return json.loads(response)
+                except json.JSONDecodeError:
+                    # Fallback to a default action if parsing fails
+                    if not self.memory.job_field:
+                        return {
+                            "action_type": "analyze_field",
+                            "agent_role": "analyzer",
+                            "details": "Initial job field analysis"
+                        }
+                    else:
+                        return {
+                            "action_type": "ask_question",
+                            "agent_role": "interviewer",
+                            "details": "Next interview question"
+                        }
+        except Exception as e:
+            print(f"Error in _get_next_action: {str(e)}")
+            # Return a safe default action
+            return {
+                "action_type": "ask_question",
+                "agent_role": "interviewer",
+                "details": "Continue with interview"
+            }
 
     def handle_input(self, input_text: str) -> Dict:
         """Process any input and determine next steps"""
@@ -435,24 +469,32 @@ class SupervisorAgent:
         # Get next action from supervisor
         action = self._get_next_action()
         
-        # Execute the determined action
-        if action['action_type'] == 'analyze_field':
-            self.memory.job_field = input_text
-            result = self._analyze_job_field(input_text)
-        elif action['action_type'] == 'ask_question':
-            result = self._get_next_question(action['details'])
-        elif action['action_type'] == 'generate_resume':
-            result = self._generate_resume()
-        else:
-            result = self._provide_feedback(action['details'])
+        try:
+            # Execute the determined action
+            if action['action_type'] == 'analyze_field':
+                self.memory.job_field = input_text
+                result = self._analyze_job_field(input_text)
+            elif action['action_type'] == 'ask_question':
+                result = self._get_next_question(action.get('details', ''))
+            elif action['action_type'] == 'generate_resume':
+                result = self._generate_resume()
+            else:
+                result = self._provide_feedback(action.get('details', ''))
+                
+            # Add result to memory
+            self.memory.add_interaction(action.get('agent_role', 'assistant'), result)
             
-        # Add result to memory
-        self.memory.add_interaction(action['agent_role'], result)
-        
-        return {
-            'action': action['action_type'],
-            'response': result
-        }
+            return {
+                'action': action['action_type'],
+                'response': result
+            }
+        except Exception as e:
+            print(f"Error in handle_input: {str(e)}")
+            # Return a safe default response
+            return {
+                'action': 'ask_question',
+                'response': "I apologize, but I'm having trouble processing that. Could you please provide more information about your professional background?"
+            }
 
     def _analyze_job_field(self, job_field: str) -> str:
         task = Task(
