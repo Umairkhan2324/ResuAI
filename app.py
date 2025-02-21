@@ -1,11 +1,10 @@
 import streamlit as st
-from main import initialize_llm, SupervisorAgent
+from main import initialize_llm, ResumeAgent
 
 def initialize_session_state():
-    if 'supervisor' not in st.session_state:
-        st.session_state.supervisor = None
-    if 'conversation_started' not in st.session_state:
-        st.session_state.conversation_started = False
+    if 'agent' not in st.session_state:
+        llm = initialize_llm()
+        st.session_state.agent = ResumeAgent(llm)
 
 st.set_page_config(
     page_title="AI Resume Generator",
@@ -16,52 +15,42 @@ st.set_page_config(
 st.title("🤖 ResuAI")
 initialize_session_state()
 
-# Initialize supervisor if needed
-if not st.session_state.supervisor:
-    llm = initialize_llm()
-    st.session_state.supervisor = SupervisorAgent(llm)
-
 # Display conversation history
-for interaction in st.session_state.supervisor.memory.history:
-    with st.chat_message(interaction['role']):
-        st.write(interaction['message'])
+for msg in st.session_state.agent.conversation_history:
+    with st.chat_message(msg['role']):
+        st.write(msg['message'])
+
+# Show initial message if conversation hasn't started
+if not st.session_state.agent.conversation_history:
+    st.markdown("""
+    Welcome to ResuAI! Let's create your professional resume through a conversation.
+    Please start by telling me what field you're interested in (e.g., "Software Engineering").
+    """)
 
 # Get user input
-if not st.session_state.conversation_started:
-    st.markdown("""
-    Welcome to ResuAI! Let's create your professional resume through an interactive conversation.
-    Please enter your desired job field to begin.
-    """)
-    st.session_state.conversation_started = True
-
 user_input = st.chat_input("Your response:")
 if user_input:
-    # Show user message
     with st.chat_message("user"):
         st.write(user_input)
     
-    # Get and show AI response
     with st.spinner("Thinking..."):
-        result = st.session_state.supervisor.handle_input(user_input)
+        result = st.session_state.agent.handle_input(user_input)
         
-        if result['action'] == 'generate_resume':
-            # Display the final resume and feedback
+        if result['action'] == 'complete':
             col1, col2 = st.columns(2)
             with col1:
-                st.subheader("Generated Resume")
-                st.markdown(result['response']['resume'], unsafe_allow_html=True)
+                st.subheader("Your Resume")
+                st.markdown(result['resume'], unsafe_allow_html=True)
             with col2:
-                st.subheader("AI Feedback")
-                st.markdown(result['response']['feedback'])
-                
+                st.subheader("Feedback")
+                st.markdown(result['feedback'])
+            
             if st.button("Start Over"):
-                st.session_state.supervisor = None
-                st.session_state.conversation_started = False
+                st.session_state.agent = ResumeAgent(initialize_llm())
                 st.rerun()
         else:
-            # Show the next question or response
             with st.chat_message("assistant"):
-                st.write(result['response'])
+                st.write(result['message'])
 
 # Add helpful information at the bottom
 st.markdown("---")
