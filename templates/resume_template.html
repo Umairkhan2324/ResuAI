@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        /* Add your CSS styles here */
+    </style>
+</head>
+<body>
+    <div class="resume">
+        <header>
+            <h1>{{ personal_info.name }}</h1>
+            <p>{{ personal_info.email }} | {{ personal_info.phone }}</p>
+        </header>
+        
+        <section class="summary">
+            <h2>Professional Summary</h2>
+            <p>{{ professional_summary }}</p>
+        </section>
+        
+        <section class="experience">
+            <h2>Work Experience</h2>
+            {% for exp in work_experience %}
+            <div class="job">
+                <h3>{{ exp.title }} at {{ exp.company }}</h3>
+                <p>{{ exp.duration }}</p>
+                <ul>
+                    {% for achievement in exp.achievements %}
+                    <li>{{ achievement }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+        </section>
+        
+        <!-- Add more sections as needed -->
+    </div>
+</body>
+</html> 
