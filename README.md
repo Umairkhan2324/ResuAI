@@ -1,6 +1,6 @@
 # ResuAI
 
-An intelligent resume creation assistant powered by IBM WatsonX AI and CrewAI, providing a conversational interface for generating professional resumes.
+An intelligent resume creation assistant powered by Google's Gemini Pro and CrewAI, providing a conversational interface for generating professional resumes.
 
 ## Features
 
@@ -10,11 +10,12 @@ An intelligent resume creation assistant powered by IBM WatsonX AI and CrewAI, p
 - 🎯 Field-Specific Guidance
 - 🔄 Natural Conversation Flow
 - 📊 Structured Information Gathering
+- 🧠 ReAct-based Decision Making
 
 ## Technical Stack
 
 - **Frontend**: Streamlit
-- **AI Model**: IBM WatsonX (Granite-13B-Instruct-V1)
+- **AI Model**: Google Gemini Pro 1.5
 - **Framework**: CrewAI
 - **Language**: Python 3.11+
 
@@ -23,21 +24,22 @@ An intelligent resume creation assistant powered by IBM WatsonX AI and CrewAI, p
 ### Core Components
 
 1. **SupervisorAgent**
-   - Manages conversation flow
-   - Tracks information collection
-   - Coordinates resume creation
-   - Provides contextual responses
+   - ReAct-based decision making
+   - Stage-based conversation management
+   - Systematic information collection
+   - Intelligent state tracking
+   - Context-aware responses
 
 2. **LLM Integration**
-   - Uses IBM WatsonX AI
-   - Custom WatsonXLLM implementation
-   - Instruction-based prompting
-   - Error handling and fallbacks
+   - Google Gemini Pro 1.5
+   - Temperature: 0.1 for consistent responses
+   - Structured output parsing
+   - Error handling and recovery
 
 3. **Information Management**
-   - Structured data collection
-   - Conversation history tracking
-   - Context-aware responses
+   - Stage-based progression
+   - Comprehensive data validation
+   - Context-aware updates
    - Progressive information gathering
 
 ## Setup
