@@ -2,7 +2,7 @@ from crewai import Agent, Task, Crew, Process, LLM
 from ibm_watsonx_ai.foundation_models import Model
 from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as GenParams
 from ibm_watsonx_ai.foundation_models.utils.enums import ModelTypes, DecodingMethods
-from ibm_watsonx_ai.foundation_models.credentials import Credentials
+from ibm_watsonx_ai.foundation_models.extensions.langchain import WatsonxLLM
 from config import IBM_API_KEY, IBM_PROJECT_ID, IBM_URL
 from typing import Dict
 from datetime import datetime
@@ -18,16 +18,19 @@ def initialize_llm():
     }
 
     # Initialize credentials
-    credentials = Credentials(
-        api_key=IBM_API_KEY,
-        url=IBM_URL
-    )
+    # credentials = Credentials(
+    #     api_key=IBM_API_KEY,
+    #     url=IBM_URL
+    # )
 
     # Initialize the model
     model = Model(
-        model_id="ibm/granite-13b-instruct-v1",  # or your specific model ID
+        model_id="ibm/granite-13b-instruct-v1",
         params=generate_params,
-        credentials=credentials,
+        credentials={
+            "apikey": IBM_API_KEY,
+            "url": IBM_URL
+        },
         project_id=IBM_PROJECT_ID
     )
 
