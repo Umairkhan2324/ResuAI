@@ -1,5 +1,5 @@
 from crewai import Agent, Task, Crew, Process, LLM
-from ibm_watsonx_ai.foundation_models import Model
+from ibm_watsonx_ai.foundation_models import ModelInference
 from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as GenParams
 from ibm_watsonx_ai.foundation_models.utils.enums import ModelTypes, DecodingMethods
 from ibm_watsonx_ai.foundation_models.extensions.langchain import WatsonxLLM
@@ -24,14 +24,15 @@ def initialize_llm():
     # )
 
     # Initialize the model
-    model = Model(
-        model_id="ibm/granite-13b-instruct-v1",
+    model = ModelInference(
+        model_id="google/flan-ul2",  # or "ibm/granite-13b-chat-v1"
         params=generate_params,
         credentials={
             "apikey": IBM_API_KEY,
             "url": IBM_URL
         },
-        project_id=IBM_PROJECT_ID
+        project_id=IBM_PROJECT_ID,
+        verify=False  # Add this if you get SSL verification errors
     )
 
     # Create custom LLM class for CrewAI compatibility
