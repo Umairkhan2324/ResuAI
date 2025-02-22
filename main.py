@@ -1,4 +1,5 @@
 from crewai import Agent, Task, Crew, Process, LLM
+from langchain.memory import ConversationBufferMemory
 import google.generativeai as genai
 from config import GEMINI_API_KEY
 from typing import Dict
@@ -15,6 +16,12 @@ class SupervisorAgent:
         self.collected_info = {}
         self.current_stage = 'greeting'  # Track conversation stage
         
+        # Initialize memory
+        self.memory = ConversationBufferMemory(
+            memory_key="chat_history",
+            return_messages=True
+        )
+        
         self.supervisor = Agent(
             role='Career Advisor',
             goal='Guide resume creation through natural conversation',
@@ -24,7 +31,8 @@ class SupervisorAgent:
             systematically gathering all required details.""",
             llm=self.llm,
             verbose=True,
-            allow_delegation=False
+            allow_delegation=False,
+            memory=self.memory  # Add memory to agent
         )
 
     def add_to_history(self, role: str, message: str):
@@ -90,13 +98,14 @@ class SupervisorAgent:
             <RESPONSE>Your actual response to the user</RESPONSE>
             """,
             expected_output="Structured response with thought process and action",
-            agent=self.supervisor
+            agent=self.supervisor,
+            context=self.get_context()  # Add context to task
         )
         
         crew = Crew(
             agents=[self.supervisor],
             tasks=[task],
-            memory=True
+            process=Process.sequential  # Add this
         )
         
         response = str(crew.kickoff())

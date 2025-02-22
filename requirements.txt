@@ -5,3 +5,5 @@ streamlit
 jinja2
 pydantic
 python-docx
+langchain
+langchain-community
