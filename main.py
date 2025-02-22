@@ -52,6 +52,12 @@ class SupervisorAgent:
         self.add_to_history('user', user_input)
         self._update_collected_info(user_input)
         
+        # Create context list from conversation history
+        context = [
+            f"{msg['role']}: {msg['message']}"
+            for msg in self.conversation_history[-5:]  # Keep last 5 messages
+        ]
+        
         task = Task(
             description=f"""
             You are a career advisor helping create a professional resume.
@@ -99,13 +105,13 @@ class SupervisorAgent:
             """,
             expected_output="Structured response with thought process and action",
             agent=self.supervisor,
-            context=self.get_context()  # Add context to task
+            context=context  # Pass list instead of string
         )
         
         crew = Crew(
             agents=[self.supervisor],
             tasks=[task],
-            process=Process.sequential  # Add this
+            process=Process.sequential
         )
         
         response = str(crew.kickoff())
