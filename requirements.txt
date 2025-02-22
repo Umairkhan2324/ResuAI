@@ -1,5 +1,5 @@
 crewai
-ibm-watsonx-ai
+google-generativeai
 python-dotenv
 streamlit
 jinja2

@@ -1,55 +1,12 @@
 from crewai import Agent, Task, Crew, Process, LLM
-from ibm_watsonx_ai.foundation_models import ModelInference
-from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as GenParams
-from ibm_watsonx_ai.foundation_models.utils.enums import ModelTypes, DecodingMethods
-from ibm_watsonx_ai.foundation_models.extensions.langchain import WatsonxLLM
-from config import IBM_API_KEY, IBM_PROJECT_ID, IBM_URL
+import google.generativeai as genai
+from config import GEMINI_API_KEY
 from typing import Dict
 from datetime import datetime
 
 def initialize_llm():
-    # Initialize WatsonX model parameters
-    generate_params = {
-        GenParams.DECODING_METHOD: DecodingMethods.GREEDY,
-        GenParams.MAX_NEW_TOKENS: 1024,
-        GenParams.MIN_NEW_TOKENS: 1,
-        GenParams.TEMPERATURE: 0.5,
-        GenParams.REPETITION_PENALTY: 1.0,
-    }
-
-    # Initialize credentials
-    # credentials = Credentials(
-    #     api_key=IBM_API_KEY,
-    #     url=IBM_URL
-    # )
-
-    # Initialize the model
-    model = ModelInference(
-        model_id="google/flan-ul2",  # or "ibm/granite-13b-chat-v1"
-        params=generate_params,
-        credentials={
-            "apikey": IBM_API_KEY,
-            "url": IBM_URL
-        },
-        project_id=IBM_PROJECT_ID,
-        verify=False  # Add this if you get SSL verification errors
-    )
-
-    # Create custom LLM class for CrewAI compatibility
-    class WatsonXLLM(LLM):
-        def __init__(self, model):
-            self.model = model
-            
-        def call(self, prompt: str) -> str:
-            try:
-                formatted_prompt = f"<instruction>{prompt}</instruction>"
-                response = self.model.generate(formatted_prompt)
-                return response.generated_text
-            except Exception as e:
-                print(f"Error calling WatsonX: {str(e)}")
-                return "I apologize, but I'm having trouble processing that request."
-
-    return WatsonXLLM(model)
+    genai.configure(api_key=GEMINI_API_KEY)
+    return LLM(model="gemini/gemini-1.5-pro-latest", temperature=0.1)
 
 class SupervisorAgent:
     def __init__(self, llm):
