@@ -1,32 +1,34 @@
 from crewai import Agent, Task, Crew, Process, LLM
-from ibm_watson_machine_learning.foundation_models import Model
-from ibm_watson_machine_learning.foundation_models.utils.enums import ModelTypes
-from ibm_watson_machine_learning.metanames import GenTextParamsMetaNames as GenParams
+from ibm_watsonx_ai.foundation_models import Model
+from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as GenParams
+from ibm_watsonx_ai.foundation_models.utils.enums import ModelTypes, DecodingMethods
+from ibm_watsonx_ai.foundation_models.credentials import Credentials
 from config import IBM_API_KEY, IBM_PROJECT_ID, IBM_URL
 from typing import Dict
 from datetime import datetime
 
 def initialize_llm():
     # Initialize WatsonX model parameters
-    params = {
-        GenParams.DECODING_METHOD: "greedy",
+    generate_params = {
+        GenParams.DECODING_METHOD: DecodingMethods.GREEDY,
         GenParams.MAX_NEW_TOKENS: 1024,
         GenParams.MIN_NEW_TOKENS: 1,
         GenParams.TEMPERATURE: 0.5,
-        # GenParams.TOP_K: 50,
-        # GenParams.TOP_P: 1
+        GenParams.REPETITION_PENALTY: 1.0,
     }
+
+    # Initialize credentials
+    credentials = Credentials(
+        api_key=IBM_API_KEY,
+        url=IBM_URL
+    )
 
     # Initialize the model
     model = Model(
-        model_id="ibm-granite/granite-3.1-8b-instruct",
-        credentials={
-            "apikey": IBM_API_KEY,
-            "url": IBM_URL
-        },
-        project_id=IBM_PROJECT_ID,
-        params=params,
-        library="ibm-foundation-models"
+        model_id="ibm/granite-13b-instruct-v1",  # or your specific model ID
+        params=generate_params,
+        credentials=credentials,
+        project_id=IBM_PROJECT_ID
     )
 
     # Create custom LLM class for CrewAI compatibility
@@ -37,8 +39,8 @@ def initialize_llm():
         def call(self, prompt: str) -> str:
             try:
                 formatted_prompt = f"<instruction>{prompt}</instruction>"
-                response = self.model.generate_text(formatted_prompt)
-                return response
+                response = self.model.generate(formatted_prompt)
+                return response.generated_text
             except Exception as e:
                 print(f"Error calling WatsonX: {str(e)}")
                 return "I apologize, but I'm having trouble processing that request."

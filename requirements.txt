@@ -1,5 +1,5 @@
 crewai
-ibm-watson-machine-learning
+ibm-watsonx-ai
 python-dotenv
 streamlit
 jinja2
