@@ -1,12 +1,49 @@
 from crewai import Agent, Task, Crew, Process, LLM
-import google.generativeai as genai
-from config import GEMINI_API_KEY
+from ibm_watson_machine_learning.foundation_models import Model
+from ibm_watson_machine_learning.foundation_models.utils.enums import ModelTypes
+from ibm_watson_machine_learning.metanames import GenTextParamsMetaNames as GenParams
+from config import IBM_API_KEY, IBM_PROJECT_ID, IBM_URL
 from typing import Dict
 from datetime import datetime
 
 def initialize_llm():
-    genai.configure(api_key=GEMINI_API_KEY)
-    return LLM(model="gemini/gemini-1.5-pro-latest", temperature=0.5)
+    # Initialize WatsonX model parameters
+    params = {
+        GenParams.DECODING_METHOD: "greedy",
+        GenParams.MAX_NEW_TOKENS: 1024,
+        GenParams.MIN_NEW_TOKENS: 1,
+        GenParams.TEMPERATURE: 0.5,
+        # GenParams.TOP_K: 50,
+        # GenParams.TOP_P: 1
+    }
+
+    # Initialize the model
+    model = Model(
+        model_id="ibm-granite/granite-3.1-8b-instruct",
+        credentials={
+            "apikey": IBM_API_KEY,
+            "url": IBM_URL
+        },
+        project_id=IBM_PROJECT_ID,
+        params=params,
+        library="ibm-foundation-models"
+    )
+
+    # Create custom LLM class for CrewAI compatibility
+    class WatsonXLLM(LLM):
+        def __init__(self, model):
+            self.model = model
+            
+        def call(self, prompt: str) -> str:
+            try:
+                formatted_prompt = f"<instruction>{prompt}</instruction>"
+                response = self.model.generate_text(formatted_prompt)
+                return response
+            except Exception as e:
+                print(f"Error calling WatsonX: {str(e)}")
+                return "I apologize, but I'm having trouble processing that request."
+
+    return WatsonXLLM(model)
 
 class SupervisorAgent:
     def __init__(self, llm):
