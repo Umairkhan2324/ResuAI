@@ -21,4 +21,4 @@ class JobAnalyzer:
             expected_output="Detailed job field analysis with structured insights",
             agent=self.agent
         )
-        return task.execute() 
+        return task.execute_sync() 

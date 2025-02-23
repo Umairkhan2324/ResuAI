@@ -31,4 +31,4 @@ class DynamicInterviewer:
             expected_output="Follow-up questions based on missing information",
             agent=self.agent
         )
-        return task.execute() 
+        return task.execute_sync() 

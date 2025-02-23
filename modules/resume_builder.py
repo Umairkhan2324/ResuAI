@@ -23,7 +23,7 @@ class ResumeBuilder:
             expected_output="HTML formatted resume with feedback",
             agent=self.agent
         )
-        return task.execute()
+        return task.execute_sync()
 
     def build_resume(self, data: Dict, template: str = 'resume_template.html') -> str:
         template = self.env.get_template(template)
