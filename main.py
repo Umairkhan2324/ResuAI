@@ -5,9 +5,21 @@ from config import GEMINI_API_KEY
 from typing import Dict
 from datetime import datetime
 
+class GeminiLLM(LLM):
+    def __init__(self):
+        genai.configure(api_key=GEMINI_API_KEY)
+        self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        
+    def call(self, prompt: str) -> str:
+        try:
+            response = self.model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            print(f"Error calling Gemini: {str(e)}")
+            return "I apologize, but I'm having trouble processing that request."
+
 def initialize_llm():
-    genai.configure(api_key=GEMINI_API_KEY)
-    return LLM(model="gemini/gemini-1.5-pro-latest", temperature=0.1)
+    return GeminiLLM()
 
 class SupervisorAgent:
     def __init__(self, llm):
@@ -51,12 +63,6 @@ class SupervisorAgent:
     def handle_input(self, user_input: str) -> Dict:
         self.add_to_history('user', user_input)
         self._update_collected_info(user_input)
-        
-        # Create context list from conversation history
-        context = [
-            f"{msg['role']}: {msg['message']}"
-            for msg in self.conversation_history[-5:]  # Keep last 5 messages
-        ]
         
         task = Task(
             description=f"""
@@ -104,14 +110,14 @@ class SupervisorAgent:
             <RESPONSE>Your actual response to the user</RESPONSE>
             """,
             expected_output="Structured response with thought process and action",
-            agent=self.supervisor,
-            context=context  # Pass list instead of string
+            agent=self.supervisor
         )
         
         crew = Crew(
             agents=[self.supervisor],
             tasks=[task],
-            process=Process.sequential
+            process=Process.sequential,
+            verbose=True
         )
         
         response = str(crew.kickoff())
