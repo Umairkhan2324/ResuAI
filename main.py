@@ -1,25 +1,15 @@
 from crewai import Agent, Task, Crew, Process, LLM
-import google.generativeai as genai
-from config import GEMINI_API_KEY
 from modules.dynamic_interviewer import DynamicInterviewer
 from modules.job_analyzer import JobAnalyzer
 from modules.resume_builder import ResumeBuilder
 from typing import Dict
 from datetime import datetime
 
-class GeminiLLM(LLM):
-    def __init__(self):
-        genai.configure(api_key=GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
-        self.temperature = 0.1
-        
-    def call(self, prompt: str) -> str:
-        try:
-            response = self.model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            print(f"Error calling Gemini: {str(e)}")
-            return "I apologize, but I'm having trouble processing that request."
+def initialize_llm():
+    return LLM(
+        model="gemini/gemini-1.5-pro-latest",
+        temperature=0.1  # Lower temperature for more consistent responses
+    )
 
 class SupervisorAgent:
     def __init__(self, llm):
@@ -85,6 +75,7 @@ class SupervisorAgent:
             <ACTION>ANALYZE_JOB|INTERVIEW|BUILD_RESUME</ACTION>
             <REASON>Why you chose this action</REASON>
             """,
+            expected_output="Structured decision with thought process, action, and reasoning",
             agent=self.supervisor
         )
         
@@ -132,7 +123,7 @@ class SupervisorAgent:
         }
 
 if __name__ == "__main__":
-    llm = GeminiLLM()
+    llm = initialize_llm()
     agent = SupervisorAgent(llm)
     result = agent.handle_input("What is your professional experience?")
     print(result) 

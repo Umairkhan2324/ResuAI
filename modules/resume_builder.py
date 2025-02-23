@@ -1,6 +1,6 @@
 from jinja2 import Environment, FileSystemLoader
 from typing import Dict
-from crewai import Agent
+from crewai import Agent, Task
 
 class ResumeBuilder:
     def __init__(self, llm):
@@ -16,25 +16,14 @@ class ResumeBuilder:
         self.env = Environment(loader=FileSystemLoader('templates'))
 
     def create_resume(self, job_field: str, info: Dict) -> str:
-        return self.agent.execute_task(
-            f"""
-            Create a professional resume for {job_field} using:
-            {info}
-            
-            Format in clean HTML and include:
-            1. Contact information
-            2. Professional summary
-            3. Work experience
-            4. Education
-            5. Skills
-            6. Projects/Achievements
-            
-            Add feedback after ---FEEDBACK--- marker
-            
-            Format as:
-            <RESUME>[HTML resume]---FEEDBACK---[Your feedback]</RESUME>
-            """
+        task = Task(
+            description=f"""
+            Create a professional resume for {job_field}...
+            """,
+            expected_output="HTML formatted resume with feedback",
+            agent=self.agent
         )
+        return task.execute()
 
     def build_resume(self, data: Dict, template: str = 'resume_template.html') -> str:
         template = self.env.get_template(template)

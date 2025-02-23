@@ -1,4 +1,4 @@
-from crewai import Agent
+from crewai import Agent, Task
 
 class JobAnalyzer:
     def __init__(self, llm):
@@ -14,37 +14,11 @@ class JobAnalyzer:
         )
 
     def analyze_field(self, job_field: str) -> str:
-        return self.agent.execute_task(
-            f"""
-            Analyze the {job_field} field and provide comprehensive insights:
-
-            1. Role Analysis:
-               - Core responsibilities
-               - Required technical skills
-               - Essential soft skills
-               - Experience level expectations
-
-            2. Industry Context:
-               - Current market trends
-               - Growth opportunities
-               - Key industry challenges
-               - Technology requirements
-
-            3. Career Development:
-               - Typical career progression
-               - Valuable certifications
-               - Learning priorities
-               - Growth opportunities
-
-            4. Resume Focus Points:
-               - Key achievements to highlight
-               - Important keywords for ATS
-               - Critical qualifications
-               - Preferred experience format
-
-            Format response as:
-            <ANALYSIS>
-            [Your detailed analysis structured under the above categories]
-            </ANALYSIS>
-            """
-        ) 
+        task = Task(
+            description=f"""
+            Analyze the {job_field} field and provide comprehensive insights...
+            """,
+            expected_output="Detailed job field analysis with structured insights",
+            agent=self.agent
+        )
+        return task.execute() 

@@ -1,5 +1,6 @@
 from crewai import Agent
 from typing import Dict
+from crewai.tasks import Task
 
 class DynamicInterviewer:
     def __init__(self, llm):
@@ -14,18 +15,11 @@ class DynamicInterviewer:
         )
 
     def gather_information(self, job_field: str, current_info: Dict) -> Dict:
-        return self.agent.execute_task(
-            f"""
-            Given the job field: {job_field}
-            And current information: {current_info}
-            
-            Ask relevant questions to gather missing information about:
-            1. Professional experience
-            2. Education and certifications
-            3. Technical and soft skills
-            4. Projects and achievements
-            
-            Format response as:
-            <QUESTIONS>[Your follow-up questions]</QUESTIONS>
-            """
-        ) 
+        task = Task(
+            description=f"""
+            Given the job field: {job_field}...
+            """,
+            expected_output="Follow-up questions based on missing information",
+            agent=self.agent
+        )
+        return task.execute() 
