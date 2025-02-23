@@ -9,14 +9,30 @@ class GeminiLLM(LLM):
     def __init__(self):
         genai.configure(api_key=GEMINI_API_KEY)
         self.model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        self.stop = []  # Add stop sequences
+        self.temperature = 0.1
+        self.max_tokens = 1024
         
     def call(self, prompt: str) -> str:
         try:
-            response = self.model.generate_content(prompt)
+            response = self.model.generate_content(
+                prompt,
+                generation_config={
+                    'temperature': self.temperature,
+                    'max_output_tokens': self.max_tokens,
+                    'stop_sequences': self.stop
+                }
+            )
             return response.text
         except Exception as e:
             print(f"Error calling Gemini: {str(e)}")
             return "I apologize, but I'm having trouble processing that request."
+            
+    def __getattr__(self, name):
+        # Handle any missing attributes that CrewAI might expect
+        if name == 'stop':
+            return []
+        return None
 
 def initialize_llm():
     return GeminiLLM()
@@ -26,9 +42,8 @@ class SupervisorAgent:
         self.llm = llm
         self.conversation_history = []
         self.collected_info = {}
-        self.current_stage = 'greeting'  # Track conversation stage
+        self.current_stage = 'greeting'
         
-        # Initialize memory
         self.memory = ConversationBufferMemory(
             memory_key="chat_history",
             return_messages=True
@@ -44,7 +59,10 @@ class SupervisorAgent:
             llm=self.llm,
             verbose=True,
             allow_delegation=False,
-            memory=self.memory  # Add memory to agent
+            memory=self.memory,
+            tools=[],  # Add empty tools list
+            max_iterations=3,  # Add max iterations
+            max_rpm=10  # Add rate limit
         )
 
     def add_to_history(self, role: str, message: str):
