@@ -1,10 +1,9 @@
 import streamlit as st
-from main import initialize_llm, SupervisorAgent
+from main import ResumeCrewAI
 
 def initialize_session_state():
     if 'agent' not in st.session_state:
-        llm = initialize_llm()
-        st.session_state.agent = SupervisorAgent(llm)
+        st.session_state.agent = ResumeCrewAI()
 
 st.set_page_config(
     page_title="AI Resume Generator",
@@ -46,7 +45,7 @@ if user_input:
                 st.markdown(result['feedback'])
             
             if st.button("Start Over"):
-                st.session_state.agent = SupervisorAgent(initialize_llm())
+                st.session_state.agent = ResumeCrewAI()
                 st.rerun()
         else:
             with st.chat_message("assistant"):
